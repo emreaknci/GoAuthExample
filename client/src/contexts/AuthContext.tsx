@@ -41,30 +41,45 @@ export const AuthProvider = ({ children }: any) => {
         checkToken();
     }, [isAuthenticated])
 
+
+
     useEffect(() => {
+        const getNewAccessToken = async () => {
+            const refreshToken = StorageService.getRefreshToken();
+            if (refreshToken) {
+                await AuthService.refreshToken({ refresh_token: refreshToken }).then(res => {
+                    StorageService.setAccessToken(res.data.data.access_token);
+                    StorageService.setRefreshToken(res.data.data.refresh_token);
+                }).catch(err => {
+                    toast.error(err.response.data.message);
+                    logout();
+                })
+            }
+        }
         const token = StorageService.getAccessToken();
         if (token && isAuthenticated && isTokenChecked) {
             const exp = JwtHelper.getTokenInfos(token).exp;
 
-            const remainingTime = exp * 1000 - new Date().getTime();
-            console.log(remainingTime / 1000)
-            if (remainingTime <= 0) {
-                logout();
-                toast.info("Your session has expired. Please sign in again.");
-                return;
-            } else {
-                setTimeout(() => {
-                    logout();
-                    toast.info("Your session has expired. Please sign in again.");
-                }, remainingTime)
+            const remainingTime = exp * 1000 - new Date().getTime(); 
+
+            if (remainingTime < 15*60*1000) { // token will expire in 15 minutes
+                getNewAccessToken();
             }
+
+            const interval = setInterval(() => {
+                getNewAccessToken();
+            }, 15*60*1000) // check every 15 minutes
+
+            return () => clearInterval(interval);
         }
+
     }, [isAuthenticated, isTokenChecked])
 
 
     const login = async (dto: { email: string, password: string }) => {
         await AuthService.login(dto).then(res => {
-            StorageService.setAccessToken(res.data.data);
+            StorageService.setAccessToken(res.data.data.access_token);
+            StorageService.setRefreshToken(res.data.data.refresh_token);
             setIsAuthenticated(true);
             setIsTokenChecked(true);
         }).catch(err => {
@@ -79,7 +94,7 @@ export const AuthProvider = ({ children }: any) => {
         setIsAdmin(false);
         setIsTokenChecked(false);
         setCurrentUserId(null);
-        StorageService.clearAccessToken();
+        StorageService.clearTokens();
     }
 
 

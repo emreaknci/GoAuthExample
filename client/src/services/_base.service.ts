@@ -29,15 +29,7 @@ axiosInstance.interceptors.request.use(
 
 axiosInstance.interceptors.response.use(
     (response) => {
-        
-        if (response.config.method !== 'get') {
-            const message = response.data.message;
-            if (message) {
-                toast.success(message);
-            }
-        }
-
-        return Promise.resolve(response);
+        return response;
     },
     (error) => {
 

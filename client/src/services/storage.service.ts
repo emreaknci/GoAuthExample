@@ -18,15 +18,24 @@ const StorageService = {
     },
 
     getAccessToken() {
-        return localStorage.getItem("access_token");
+        return sessionStorage.getItem("access_token");
+    },
+
+    getRefreshToken() {
+        return sessionStorage.getItem("refresh_token");
     },
 
     setAccessToken(token: string) {
-        localStorage.setItem("access_token", token);
+        sessionStorage.setItem("access_token", token);
     },
 
-    clearAccessToken() {
-        localStorage.removeItem("access_token");
+    setRefreshToken(token: string) {
+        sessionStorage.setItem("refresh_token", token);
+    },
+
+    clearTokens() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("refresh_token");
     }
 }
 

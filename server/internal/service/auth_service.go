@@ -2,17 +2,24 @@ package service
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/emreaknci/goauthexample/internal/model"
 	"github.com/emreaknci/goauthexample/internal/repository"
 	"github.com/emreaknci/goauthexample/pkg/util/response"
 	"github.com/emreaknci/goauthexample/pkg/util/security/hashing"
-	"github.com/emreaknci/goauthexample/pkg/util/security/jwt"
+	"github.com/emreaknci/goauthexample/pkg/util/security/token"
 )
 
+type TokenResponse struct {
+	AcessToken   string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
 type AuthService interface {
-	LogIn(email string, password string) response.CustomResponse[string] //jwt token
+	LogIn(email string, password string) response.CustomResponse[TokenResponse]
 	Register(email string, password string) response.CustomResponse[any]
+	RefreshToken(refreshToken string) response.CustomResponse[TokenResponse]
 }
 
 type authService struct {
@@ -23,24 +30,35 @@ func NewAuthService(repo repository.UserRepository) AuthService {
 	return &authService{repo}
 }
 
-func (s *authService) LogIn(email string, password string) response.CustomResponse[string] {
+func (s *authService) LogIn(email string, password string) response.CustomResponse[TokenResponse] {
 	user, err := s.repo.FindByFilter(map[string]interface{}{"email": email})
 	if err != nil {
-		return response.CustomResponse[string]{Message: "User not found", Status: false, StatusCode: 404, Error: err.Error()}
+		return response.CustomResponse[TokenResponse]{Message: "User not found", Status: false, StatusCode: 404, Error: err.Error()}
 	}
 
 	isValid, err := hashing.VerifyPasswordHash(password, user.PasswordHash, user.PasswordSalt)
 	if !isValid {
-		return response.CustomResponse[string]{Status: false, Error: err.Error(), Message: "Your password is incorrect", StatusCode: 401}
+		return response.CustomResponse[TokenResponse]{Status: false, Error: err.Error(), Message: "Your password is incorrect", StatusCode: 401}
 	}
 
-	token, err := jwt.GenerateToken(fmt.Sprintf("%d", user.ID))
+	accessToken, err := token.GenerateToken(fmt.Sprintf("%d", user.ID))
 	if err != nil {
-		return response.CustomResponse[string]{Status: false, Error: err.Error(), Message: "Token generation failed", StatusCode: 500}
+		return response.CustomResponse[TokenResponse]{Status: false, Error: err.Error(), Message: "Token generation failed", StatusCode: 500}
 	}
 
-	return response.CustomResponse[string]{Status: true, StatusCode: 200, Data: token, Message: "Login successful"}
+	refreshToken, expiry, err := token.GenerateRefreshToken()
+	if err != nil {
+		return response.CustomResponse[TokenResponse]{Status: false, Error: err.Error(), Message: "Refresh token generation failed", StatusCode: 500}
+	}
 
+	user.RefreshToken = refreshToken
+	user.RefreshTokenExpiry = expiry
+	_, err = s.repo.Update(user)
+	if err != nil {
+		return response.CustomResponse[TokenResponse]{Status: false, Error: err.Error(), Message: "Refresh token update failed", StatusCode: 500}
+	}
+
+	return response.CustomResponse[TokenResponse]{Status: true, StatusCode: 200, Data: TokenResponse{AcessToken: accessToken, RefreshToken: refreshToken}, Message: "Login successful"}
 }
 
 func (s *authService) Register(email string, password string) response.CustomResponse[any] {
@@ -67,4 +85,34 @@ func (s *authService) Register(email string, password string) response.CustomRes
 	}
 
 	return response.CustomResponse[any]{Status: true, Message: "Registration successful", StatusCode: 201}
+}
+
+func (s *authService) RefreshToken(refreshToken string) response.CustomResponse[TokenResponse] {
+	user, err := s.repo.FindByFilter(map[string]interface{}{"refresh_token": refreshToken})
+	if err != nil {
+		return response.CustomResponse[TokenResponse]{Message: "User not found", Status: false, StatusCode: 404, Error: err.Error()}
+	}
+
+	if user.RefreshTokenExpiry < time.Now().Unix() {
+		return response.CustomResponse[TokenResponse]{Status: false, Message: "Refresh token expired", StatusCode: 401}
+	}
+
+	accessToken, err := token.GenerateToken(fmt.Sprintf("%d", user.ID))
+	if err != nil {
+		return response.CustomResponse[TokenResponse]{Status: false, Error: err.Error(), Message: "Token generation failed", StatusCode: 500}
+	}
+
+	refreshToken, expiry, err := token.GenerateRefreshToken()
+	if err != nil {
+		return response.CustomResponse[TokenResponse]{Status: false, Error: err.Error(), Message: "Refresh token generation failed", StatusCode: 500}
+	}
+
+	user.RefreshToken = refreshToken
+	user.RefreshTokenExpiry = expiry
+	_, err = s.repo.Update(user)
+	if err != nil {
+		return response.CustomResponse[TokenResponse]{Status: false, Error: err.Error(), Message: "Refresh token update failed", StatusCode: 500}
+	}
+
+	return response.CustomResponse[TokenResponse]{Status: true, StatusCode: 200, Data: TokenResponse{AcessToken: accessToken, RefreshToken: refreshToken}, Message: "Token refreshed"}
 }

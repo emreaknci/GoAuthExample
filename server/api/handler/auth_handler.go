@@ -9,6 +9,7 @@ import (
 type AuthHandler interface {
 	LogIn(c *gin.Context)
 	Register(c *gin.Context)
+	RefreshToken(c *gin.Context)
 }
 
 type authHandler struct {
@@ -44,4 +45,14 @@ func (a *authHandler) Register(c *gin.Context) {
 	c.JSON(res.StatusCode, res)
 }
 
+func (a *authHandler) RefreshToken(c *gin.Context) {
+	var req request.RefreshTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
 
+	res := a.service.RefreshToken(req.RefreshToken)
+
+	c.JSON(res.StatusCode, res)
+}

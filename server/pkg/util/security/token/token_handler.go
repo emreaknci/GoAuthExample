@@ -1,17 +1,30 @@
-package jwt
+package token
 
 import (
-	"log"
+	"crypto/rand"
+	"encoding/base64"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
+func GenerateRefreshToken() (string, int64, error) {
+	token := make([]byte, 32)
+	_, err := rand.Read(token)
+	if err != nil {
+		return "", 0, err
+	}
+	refreshToken := base64.URLEncoding.EncodeToString(token)
+
+	expiry := time.Now().Add(7 * 24 * time.Hour).Unix()
+
+	return refreshToken, expiry, nil
+}
+
 func GenerateToken(userID string) (string, error) {
 	secretKey := os.Getenv("JWT_SECRET_KEY")
-	expirationTime := time.Now().Add(time.Duration(getExpirationTime()) * time.Second)
+	expirationTime := time.Now().Add(time.Minute * 15)
 
 	claims := &TokenClaims{
 		UserID: userID,
@@ -46,19 +59,4 @@ func ValidateToken(tokenStr string) (*TokenClaims, error) {
 	}
 
 	return nil, err
-}
-
-func getExpirationTime() int64 {
-	expirationTime := os.Getenv("JWT_EXPIRATION_TIME")
-	if expirationTime == "" {
-		return 3600
-	}
-
-	expTime, err := strconv.ParseInt(expirationTime, 10, 64)
-	if err != nil {
-		log.Fatalf("Invalid JWT_EXPIRATION_TIME value: %v", err)
-		return 3600
-	}
-
-	return expTime
 }
