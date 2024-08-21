@@ -1,0 +1,42 @@
+version: '3.4'
+
+services:
+  server:
+    container_name: c_server_goauthexample
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    env_file:
+      - ./server/.env
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=admin
+      - DB_PASSWORD=goauthexample
+      - DB_NAME=GoAuthExampleDB
+      - JWT_SECRET_KEY=top_secret_key_for_jwt_top_secret_key_for_jwt
+      - JWT_EXPIRATION_TIME=3600 # as seconds
+      - WEB_APP_PORT=5000
+  
+  client:
+    container_name: c_client_goauthexample
+    ports:
+      - "5000:5000"
+    depends_on:
+      - server
+    env_file:
+      - ./client/.env
+    environment:
+      - VITE_SERVER_URL=http://localhost:8080
+
+  db:
+    container_name: c_db_goauthexample
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: goauthexample
+      POSTGRES_DB: GoAuthExampleDB
+    ports:
+      - "5454:5432"
+    volumes:
+      - goauthexampledb_volume:/var/lib/postgresql/data

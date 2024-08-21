@@ -1,0 +1,21 @@
+version: '3.4'
+
+services:
+  server:
+    image: ${DOCKER_REGISTRY-}goauthexampleserver
+    build:
+      context: ./server
+      dockerfile: ./Dockerfile
+
+  client:
+    image: ${DOCKER_REGISTRY-}goauthexampleclient
+    build:
+      context: ./client
+      dockerfile: ./Dockerfile
+
+  db:
+    image: postgres:latest
+    restart: always
+
+volumes:
+  goauthexampledb_volume:
